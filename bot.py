@@ -41,11 +41,12 @@ class AddClient(StatesGroup):
     waiting_name = State()
 
 # ─── Shell helper ─────────────────────────────────────────────────────────────
-def run(cmd: str) -> tuple[str, str]:
-    """Выполняет shell-команду локально, возвращает (stdout, stderr)."""
+def run(cmd: list[str]) -> tuple[str, str]:
     result = subprocess.run(
-        cmd, shell=True, capture_output=True,
-        text=True, timeout=30
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=120
     )
     return result.stdout.strip(), result.stderr.strip()
 
@@ -81,15 +82,15 @@ def server_menu_kb() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="⬅️ Главное меню", callback_data="main_menu")],
     ])
 
-
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⬅️ Главное меню", callback_data="main_menu")]
-    ])
-
 def back_to_list_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⬅️ К списку клиентов", callback_data="list_clients")],
         [InlineKeyboardButton(text="🏠 Главное меню",       callback_data="main_menu")],
+    ])
+
+def back_to_menu_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬅️ Главное меню", callback_data="main_menu")]
     ])
 
 def confirm_delete_kb(safe_name: str) -> InlineKeyboardMarkup:
@@ -128,7 +129,7 @@ def get_clients() -> list[dict]:
 def add_client(display_name: str) -> tuple[bool, str]:
     """Создаёт нового клиента через awg-add-client."""
     safe = re.sub(r"[^a-zA-Z0-9_-]", "_", display_name)
-    out, err = run(f"awg-add-client '{safe}' '{display_name}' 2>&1")
+    out, err = run(["awg-add-client", safe, display_name])
     combined = (out + err).lower()
     if "error" in combined or "fail" in combined:
         return False, out or err
