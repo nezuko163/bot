@@ -23,7 +23,7 @@ get_clients() {
     NAME=$(cat "$f")
     SAFE=$(basename "$f" _displayname.txt)
     IP=$(grep "^Address" "$DIR/${SAFE}.conf" 2>/dev/null | awk '{print $3}' | cut -d'/' -f1)
-    echo "${SAFE}|${NAME}|${IP:-none}"
+    echo "${NAME}"
   done
 }
 
@@ -239,7 +239,7 @@ while true; do
       SAFE_NAME=$(echo "$CLIENT" | awk -F'|' '{print $1}')
       client_actions "$SAFE_NAME"
       ;;
-      
+
     "🗑️ Удалить клиента")
       CLIENT=$(get_clients | \
         fzf --height=15 --border \
