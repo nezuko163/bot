@@ -18,13 +18,84 @@ header() {
 }
 
 get_clients() {
-  ls $DIR/*_displayname.txt 2>/dev/null | sed 's/.*\///; s/_displayname.txt//' | while read name; do
-    if [ "$name" != "server" ]; then
-      DISPLAY=$(cat $DIR/${name}_displayname.txt)
-      PUB=$(cat $DIR/${name}_public.key)
-      IP=$(awg show awg0 allowed-ips 2>/dev/null | grep "$PUB" | awk '{print $2}' | awk -d'/' -f1)
-      echo "$DISPLAY | $IP | $name"
-    fi
+  for f in $DIR/client_*_displayname.txt; do
+    [ -f "$f" ] || continue
+    NAME=$(cat "$f")
+    SAFE=$(basename "$f" _displayname.txt)
+    IP=$(grep "^Address" "$DIR/${SAFE}.conf" 2>/dev/null | awk '{print $3}' | cut -d'/' -f1)
+    echo "${SAFE}|${NAME}|${IP:-none}"
+  done
+}
+
+client_actions() {
+  SAFE_NAME="$1"
+  DISPLAY_NAME=$(cat $DIR/${SAFE_NAME}_displayname.txt 2>/dev/null)
+  PUBLIC_KEY=$(cat $DIR/${SAFE_NAME}_public.key 2>/dev/null)
+
+  while true; do
+    ACTION=$(printf "📱 Получить ссылку\n👁️ Показать данные\n📄 Показать конфиг\n🗑️ Удалить клиента\n⬅️ Назад" | \
+      fzf --height=12 --border --no-info \
+          --header="Клиент: $DISPLAY_NAME" \
+          --pointer="➤")
+
+    case "$ACTION" in
+      "📱 Получить ссылку")
+        CONF_B64=$(base64 < $DIR/${SAFE_NAME}.conf | tr -d '\n')
+        ENCODED_NAME=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$DISPLAY_NAME")
+        clear
+        echo "🔗 VPN ссылка:"
+        echo ""
+        echo "vpn://${CONF_B64}?name=${ENCODED_NAME}"
+        echo ""
+        read -p "Enter..."
+        ;;
+
+      "👁️ Показать данные")
+        IP=$(awg show awg0 allowed-ips 2>/dev/null | grep "$PUBLIC_KEY" | awk '{print $2}')
+        ENDPOINT=$(awg show awg0 endpoints 2>/dev/null | grep "$PUBLIC_KEY" | awk '{print $2}')
+        HANDSHAKE=$(awg show awg0 latest-handshakes 2>/dev/null | grep "$PUBLIC_KEY" | awk '{print $2}')
+        TRANSFER=$(awg show awg0 transfer 2>/dev/null | grep "$PUBLIC_KEY" | awk '{print $2 " ↓ / " $3 " ↑"}')
+        clear
+        echo "══════════ 👤 КЛИЕНТ ══════════"
+        echo "Имя:        $DISPLAY_NAME"
+        echo "IP:         ${IP:-не подключён}"
+        echo "Endpoint:   ${ENDPOINT:-—}"
+        echo "Handshake:  ${HANDSHAKE:-—}"
+        echo "Трафик:     ${TRANSFER:-—}"
+        echo ""
+        echo "🔑 Public key:"
+        echo "$PUBLIC_KEY"
+        echo ""
+        read -p "Enter..."
+        ;;
+
+      "📄 Показать конфиг")
+        clear
+        cat $DIR/${SAFE_NAME}.conf
+        echo ""
+        read -p "Enter..."
+        ;;
+
+      "🗑️ Удалить клиента")
+        read -p "Удалить '$DISPLAY_NAME'? (y/N): " CONFIRM
+        if [[ "$CONFIRM" == "y" || "$CONFIRM" == "Y" ]]; then
+          awg set awg0 peer $PUBLIC_KEY remove 2>/dev/null
+          awg-quick save $DIR/awg0.conf 2>/dev/null
+          rm -f $DIR/${SAFE_NAME}_displayname.txt \
+                $DIR/${SAFE_NAME}_public.key \
+                $DIR/${SAFE_NAME}_private.key \
+                $DIR/${SAFE_NAME}.conf
+          clear
+          echo "✅ Удалён: $DISPLAY_NAME"
+          read -p "Enter..."
+          break
+        fi
+        ;;
+
+      "⬅️ Назад"|"")
+        break
+        ;;
+    esac
   done
 }
 
@@ -141,73 +212,6 @@ server_menu() {
   done
 }
 
-client_actions() {
-  SAFE_NAME="$1"
-  DISPLAY_NAME=$(cat $DIR/${SAFE_NAME}_displayname.txt 2>/dev/null)
-  PUBLIC_KEY=$(cat $DIR/${SAFE_NAME}_public.key)
-
-  while true; do
-    ACTION=$(printf "📱 Получить ссылку\n👁️ Показать данные\n📄 Показать конфиг\n🗑️ Удалить клиента\n⬅️ Назад" | \
-      fzf --height=12 --border --no-info \
-          --header="Клиент: $DISPLAY_NAME" \
-          --pointer="➤")
-
-    case "$ACTION" in
-      "📱 Получить ссылку")
-        CONF_B64=$(cat $DIR/${SAFE_NAME}.conf | base64 | tr -d '\n')
-        ENCODED_NAME=$(python3 -c "import urllib.parse; print(urllib.parse.quote('''$DISPLAY_NAME'''))")
-        clear
-        echo "🔗 VPN ссылка:"
-        echo ""
-        echo "vpn://${CONF_B64}?name=${ENCODED_NAME}"
-        echo ""
-        read -p "Enter..."
-        ;;
-
-      "👁️ Показать данные")
-        IP=$(awg show awg0 allowed-ips 2>/dev/null | grep "$PUBLIC_KEY" | awk '{print $2}')
-        ENDPOINT=$(awg show awg0 endpoints 2>/dev/null | grep "$PUBLIC_KEY" | awk '{print $2}')
-        HANDSHAKE=$(awg show awg0 latest-handshakes 2>/dev/null | grep "$PUBLIC_KEY" | awk '{print $2}')
-        TRANSFER=$(awg show awg0 transfer 2>/dev/null | grep "$PUBLIC_KEY" | awk '{print $2 " ↓ / " $3 " ↑"}')
-        clear
-        echo "══════════ 👤 КЛИЕНТ ══════════"
-        echo "Имя:        $DISPLAY_NAME"
-        echo "IP:         $IP"
-        echo "Endpoint:   $ENDPOINT"
-        echo "Handshake:  $HANDSHAKE"
-        echo "Трафик:     $TRANSFER"
-        echo ""
-        echo "🔑 Public:"
-        echo "$PUBLIC_KEY"
-        echo ""
-        read -p "Enter..."
-        ;;
-
-      "📄 Показать конфиг")
-        clear
-        cat $DIR/${SAFE_NAME}.conf
-        echo ""
-        read -p "Enter..."
-        ;;
-
-      "🗑️ Удалить клиента")
-        PUB=$(cat $DIR/${SAFE_NAME}_public.key)
-        awg set awg0 peer $PUB remove
-        awg-quick save $DIR/awg0.conf
-        rm -f $DIR/${SAFE_NAME}_*
-        clear
-        echo "✅ Удалён: $DISPLAY_NAME"
-        read -p "Enter..."
-        break
-        ;;
-
-      "⬅️ Назад"|"")
-        break
-        ;;
-    esac
-  done
-}
-
 while true; do
   header
 
@@ -225,20 +229,8 @@ while true; do
       ;;
 
     "📋 Список клиентов")
-      CLIENT=$(for f in $DIR/client_*_displayname.txt; do
-        [ -f "$f" ] || continue
-        NAME=$(cat "$f")
-        SAFE=$(basename "$f" _displayname.txt)
-        IP=$(grep "^Address" "$DIR/${SAFE}.conf" 2>/dev/null | awk '{print $3}' | awk -d'/' -f1)
-        echo "${NAME}§${IP:-none}§${SAFE}"
-      done 2>/dev/null | fzf --height=15 --border --no-info \
-                 --delimiter="§" \
-                 --with-nth=1,2 \
-                 --pointer="➤" \
-                 --header="Выбери клиента")
-      [ -z "$CLIENT" ] && continue
-      SAFE_NAME=$(echo "$CLIENT" | awk -d'§' -f3)
-      client_actions "$SAFE_NAME"
+      awg-list-clients
+      pause
       ;;
 
     "🗑️ Удалить клиента")
