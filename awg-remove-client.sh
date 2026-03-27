@@ -73,4 +73,15 @@ PYEOF
 
 echo "✅ Peer удалён из awg0.conf"
 
-# --- УДАЛЕНИЕ ФАЙ
+# --- УДАЛЕНИЕ ФАЙЛОВ КЛИЕНТА ---
+rm -f "$DIR/${SAFE}_displayname.txt"
+rm -f "$DIR/${SAFE}_public.key"
+rm -f "$DIR/${SAFE}_private.key"
+rm -f "$DIR/${SAFE}.conf"
+echo "✅ Файлы клиента удалены"
+
+echo ""
+echo "✅ Клиент '$DISPLAY' успешно удалён"
+EOF
+
+chmod +x /usr/local/bin/awg-remove-client
