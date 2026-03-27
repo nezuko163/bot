@@ -28,7 +28,7 @@ get_clients() {
 }
 client_actions() {
   SAFE_NAME="$1"
-  DISPLAY_NAME=$(cat $DIR/${SAFE_NAME}_displayname.txt 2>/dev/null)
+  DISPLAY_NAME="${2:-$(cat $DIR/${SAFE_NAME}_displayname.txt 2>/dev/null)}"
   PUBLIC_KEY=$(cat $DIR/${SAFE_NAME}_public.key 2>/dev/null)
 
   while true; do
