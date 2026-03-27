@@ -225,13 +225,13 @@ while true; do
       ;;
 
     "📋 Список клиентов")
-      CLIENT=$(for f in $DIR/client_*_displayname.txt 2>/dev/null; do
+      CLIENT=$(for f in $DIR/client_*_displayname.txt; do
         [ -f "$f" ] || continue
         NAME=$(cat "$f")
         SAFE=$(basename "$f" | sed 's/_displayname\.txt//')
         IP=$(grep "^Address" "$DIR/${SAFE}.conf" 2>/dev/null | awk '{print $3}' | cut -d'/' -f1)
         echo "$NAME | ${IP:-none} | $SAFE"
-      done | fzf --height=15 --border --no-info \
+      done 2>/dev/null | fzf --height=15 --border --no-info \
                  --delimiter="|" \
                  --with-nth=1,2 \
                  --pointer="➤" \
