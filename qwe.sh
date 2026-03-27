@@ -22,7 +22,7 @@ get_clients() {
     if [ "$name" != "server" ]; then
       DISPLAY=$(cat $DIR/${name}_displayname.txt)
       PUB=$(cat $DIR/${name}_public.key)
-      IP=$(awg show awg0 allowed-ips 2>/dev/null | grep "$PUB" | awk '{print $2}' | cut -d'/' -f1)
+      IP=$(awg show awg0 allowed-ips 2>/dev/null | grep "$PUB" | awk '{print $2}' | awk -d'/' -f1)
       echo "$DISPLAY | $IP | $name"
     fi
   done
@@ -229,7 +229,7 @@ while true; do
         [ -f "$f" ] || continue
         NAME=$(cat "$f")
         SAFE=$(basename "$f" _displayname.txt)
-        IP=$(grep "^Address" "$DIR/${SAFE}.conf" 2>/dev/null | awk '{print $3}' | cut -d'/' -f1)
+        IP=$(grep "^Address" "$DIR/${SAFE}.conf" 2>/dev/null | awk '{print $3}' | awk -d'/' -f1)
         echo "${NAME}§${IP:-none}§${SAFE}"
       done 2>/dev/null | fzf --height=15 --border --no-info \
                  --delimiter="§" \
@@ -237,7 +237,7 @@ while true; do
                  --pointer="➤" \
                  --header="Выбери клиента")
       [ -z "$CLIENT" ] && continue
-      SAFE_NAME=$(echo "$CLIENT" | cut -d'§' -f3)
+      SAFE_NAME=$(echo "$CLIENT" | awk -d'§' -f3)
       client_actions "$SAFE_NAME"
       ;;
 
