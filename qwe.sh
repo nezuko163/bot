@@ -230,14 +230,14 @@ while true; do
         NAME=$(cat "$f")
         SAFE=$(basename "$f" | sed 's/_displayname\.txt//')
         IP=$(grep "^Address" "$DIR/${SAFE}.conf" 2>/dev/null | awk '{print $3}' | cut -d'/' -f1)
-        echo "$NAME | ${IP:-none} | $SAFE"
+        echo "${NAME}|${IP:-none}|${SAFE}"
       done 2>/dev/null | fzf --height=15 --border --no-info \
                  --delimiter="|" \
                  --with-nth=1,2 \
                  --pointer="➤" \
                  --header="Выбери клиента")
       [ -z "$CLIENT" ] && continue
-      SAFE_NAME=$(echo "$CLIENT" | awk -F'|' '{print $3}' | xargs)
+      SAFE_NAME=$(echo "$CLIENT" | cut -d'|' -f3)
       client_actions "$SAFE_NAME"
       ;;
 
