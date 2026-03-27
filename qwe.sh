@@ -17,17 +17,6 @@ header() {
   echo "╚══════════════════════════════╝"
 }
 
-get_clients() {
-  ls $DIR/*_displayname.txt 2>/dev/null | sed 's/.*\///; s/_displayname.txt//' | while read name; do
-    if [ "$name" != "server" ]; then
-      DISPLAY=$(cat $DIR/${name}_displayname.txt)
-      PUB=$(cat $DIR/${name}_public.key)
-      IP=$(awg show awg0 allowed-ips 2>/dev/null | grep "$PUB" | awk '{print $2}' | cut -d'/' -f1)
-      echo "$DISPLAY | $IP | $name"
-    fi
-  done
-}
-
 server_menu() {
   while true; do
     # Получаем статус
@@ -225,7 +214,8 @@ while true; do
       ;;
 
     "📋 Список клиентов")
-      CLIENT=$(get_clients | \
+      awg-list-clients
+      CLIENT=$(get_clients | \ | \
         fzf --height=15 --border \
             --delimiter="|" \
             --with-nth=1,2 \
