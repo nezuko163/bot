@@ -226,6 +226,7 @@ while true; do
 
     "📋 Список клиентов")
       awg-list-clients
+      pause
       ;;
 
     "🗑️ Удалить клиента")
