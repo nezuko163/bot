@@ -231,12 +231,10 @@ while true; do
     "📋 Список клиентов")
       CLIENT=$(get_clients | \
         fzf --height=15 --border --no-info \
-            --delimiter="|" \
-            --with-nth=2,3 \
             --pointer="➤" \
             --header="Выбери клиента")
       [ -z "$CLIENT" ] && continue
-      SAFE_NAME=$(echo "$CLIENT" | awk -F'|' '{print $1}')
+      SAFE_NAME=$(echo "$CLIENT" | awk '{print $NF}')
       client_actions "$SAFE_NAME"
       ;;
 
