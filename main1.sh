@@ -308,6 +308,9 @@ AllowedIPs = 0.0.0.0/0, ::/0
 PersistentKeepalive = 25
 EOF
 
+  # Сохраняем отображаемое имя
+  echo "$CLIENT_DISPLAY_NAME" > "$CLIENTS_DIR/${CLIENT_NAME}.name"
+
   # Добавляем пира в серверный конфиг
   cat >> "$CONF" <<EOF
 
@@ -335,10 +338,9 @@ EOF
   # ── Ссылка для подключения AmneziaVPN ──────────────────────────
   # Формат: vpn://base64(конфиг)?name=urlencoded_name
   # Именно этот формат принимает AmneziaVPN при вставке ссылки
-  local VPN_LINK ENCODED_NAME CONF_B64
-  ENCODED_NAME=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$CLIENT_DISPLAY_NAME" 2>/dev/null || echo "$CLIENT_DISPLAY_NAME")
+  local VPN_LINK CONF_B64
   CONF_B64=$(base64 -w 0 < "$CLIENTS_DIR/${CLIENT_NAME}.conf")
-  VPN_LINK="vpn://${CONF_B64}?name=${ENCODED_NAME}"
+  VPN_LINK="vpn://${CONF_B64}"
   if [[ -z "$CONF_B64" ]]; then
     VPN_LINK="(ошибка генерации ссылки)"
   fi
@@ -446,10 +448,9 @@ list_clients() {
     echo "  ────────────────────────────────────────"
     echo ""
     if command -v qrencode &>/dev/null; then
-      local SEL_ENC_NAME SEL_CONF_B64 SEL_VPN_LINK
-      SEL_ENC_NAME=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$SELECTED" 2>/dev/null || echo "$SELECTED")
+      local SEL_CONF_B64 SEL_VPN_LINK
       SEL_CONF_B64=$(base64 -w 0 < "$CLIENTS_DIR/${SELECTED}.conf")
-      SEL_VPN_LINK="vpn://${SEL_CONF_B64}?name=${SEL_ENC_NAME}"
+      SEL_VPN_LINK="vpn://${SEL_CONF_B64}"
       echo -e "  ${BOLD}🔗 Ссылка для подключения:${RESET}"
       echo ""
       echo -e "  ${CYAN}$SEL_VPN_LINK${RESET}"
