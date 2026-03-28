@@ -220,32 +220,20 @@ add_client() {
   echo -e "${BOLD}  ➕ Добавление нового клиента${RESET}"
   echo ""
 
-  # Имя клиента — любое, включая кириллицу и пробелы
-  echo -e "  ${DIM}Введите название устройства (например: Мой телефон, Work Laptop):${RESET}"
+  # Имя клиента
+  echo -e "  ${DIM}Введите имя клиента (например: phone, laptop, work):${RESET}"
   echo -n "  > "
-  read -r CLIENT_DISPLAY_NAME
+  read -r CLIENT_NAME
 
-  if [[ -z "$CLIENT_DISPLAY_NAME" ]]; then
+  if [[ -z "$CLIENT_NAME" ]]; then
     echo -e "${RED}  Имя не может быть пустым${RESET}"
     pause
     return
   fi
 
-  # Безопасное имя для файловой системы: lowercase латиница/цифры/дефис/подчёркивание
-  local CLIENT_NAME
-  CLIENT_NAME=$(echo "$CLIENT_DISPLAY_NAME" \
-    | tr '[:upper:]' '[:lower:]' \
-    | tr ' ' '_' \
-    | sed 's/[^a-z0-9_-]//g')
-
-  # Если после очистки пусто (была только кириллица) — используем timestamp
-  if [[ -z "$CLIENT_NAME" ]]; then
-    CLIENT_NAME="device_$(date +%s)"
-  fi
-
-  # Проверка уникальности по имени файла
+  # Проверка уникальности
   if [[ -f "$CLIENTS_DIR/${CLIENT_NAME}.conf" ]]; then
-    echo -e "${RED}  Клиент '${CLIENT_DISPLAY_NAME}' уже существует!${RESET}"
+    echo -e "${RED}  Клиент '$CLIENT_NAME' уже существует!${RESET}"
     pause
     return
   fi
@@ -308,13 +296,10 @@ AllowedIPs = 0.0.0.0/0, ::/0
 PersistentKeepalive = 25
 EOF
 
-  # Сохраняем отображаемое имя
-  echo "$CLIENT_DISPLAY_NAME" > "$CLIENTS_DIR/${CLIENT_NAME}.name"
-
   # Добавляем пира в серверный конфиг
   cat >> "$CONF" <<EOF
 
-# $CLIENT_DISPLAY_NAME
+# Client: $CLIENT_NAME
 [Peer]
 PublicKey = $CLIENT_PUBKEY
 PresharedKey = $CLIENT_PSK
@@ -330,17 +315,18 @@ EOF
   fi
 
   echo ""
-  echo -e "${GREEN}  ✅ Клиент '${BOLD}$CLIENT_DISPLAY_NAME${RESET}${GREEN}' создан!${RESET}"
-  echo -e "  📍 VPN IP:  ${CYAN}$CLIENT_IP${RESET}"
-  echo -e "  📁 Файл:   ${DIM}$CLIENTS_DIR/${CLIENT_NAME}.conf${RESET}"
+  echo -e "${GREEN}  ✅ Клиент '${BOLD}$CLIENT_NAME${RESET}${GREEN}' создан!${RESET}"
+  echo -e "  📍 VPN IP: ${CYAN}$CLIENT_IP${RESET}"
+  echo -e "  📁 Конфиг: ${DIM}$CLIENTS_DIR/${CLIENT_NAME}.conf${RESET}"
   echo ""
 
   # ── Ссылка для подключения AmneziaVPN ──────────────────────────
   # Формат: vpn://base64(конфиг)?name=urlencoded_name
   # Именно этот формат принимает AmneziaVPN при вставке ссылки
-  local VPN_LINK CONF_B64
+  local VPN_LINK ENCODED_NAME CONF_B64
+  ENCODED_NAME=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$CLIENT_NAME" 2>/dev/null || echo "$CLIENT_NAME")
   CONF_B64=$(base64 -w 0 < "$CLIENTS_DIR/${CLIENT_NAME}.conf")
-  VPN_LINK="vpn://${CONF_B64}"
+  VPN_LINK="vpn://${CONF_B64}?name=${ENCODED_NAME}"
   if [[ -z "$CONF_B64" ]]; then
     VPN_LINK="(ошибка генерации ссылки)"
   fi
@@ -448,9 +434,10 @@ list_clients() {
     echo "  ────────────────────────────────────────"
     echo ""
     if command -v qrencode &>/dev/null; then
-      local SEL_CONF_B64 SEL_VPN_LINK
+      local SEL_ENC_NAME SEL_CONF_B64 SEL_VPN_LINK
+      SEL_ENC_NAME=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$SELECTED" 2>/dev/null || echo "$SELECTED")
       SEL_CONF_B64=$(base64 -w 0 < "$CLIENTS_DIR/${SELECTED}.conf")
-      SEL_VPN_LINK="vpn://${SEL_CONF_B64}"
+      SEL_VPN_LINK="vpn://${SEL_CONF_B64}?name=${SEL_ENC_NAME}"
       echo -e "  ${BOLD}🔗 Ссылка для подключения:${RESET}"
       echo ""
       echo -e "  ${CYAN}$SEL_VPN_LINK${RESET}"
