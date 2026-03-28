@@ -258,12 +258,35 @@ add_client() {
   SERVER_IP=$(server_public_ip)
   SERVER_PORT=$(server_port)
 
-  # Конфиг клиента
+  # ── Читаем AWG-параметры обфускации из серверного конфига ──────
+  # AmneziaVPN требует эти параметры в конфиге клиента,
+  # иначе распознаёт его как обычный WireGuard и не подключается
+  local JC JMIN JMAX S1 S2 H1 H2 H3 H4
+  JC=$(grep    "^Jc"   "$CONF" 2>/dev/null | awk '{print $3}' || echo "4")
+  JMIN=$(grep  "^Jmin" "$CONF" 2>/dev/null | awk '{print $3}' || echo "40")
+  JMAX=$(grep  "^Jmax" "$CONF" 2>/dev/null | awk '{print $3}' || echo "70")
+  S1=$(grep    "^S1"   "$CONF" 2>/dev/null | awk '{print $3}' || echo "0")
+  S2=$(grep    "^S2"   "$CONF" 2>/dev/null | awk '{print $3}' || echo "0")
+  H1=$(grep    "^H1"   "$CONF" 2>/dev/null | awk '{print $3}' || echo "1")
+  H2=$(grep    "^H2"   "$CONF" 2>/dev/null | awk '{print $3}' || echo "2")
+  H3=$(grep    "^H3"   "$CONF" 2>/dev/null | awk '{print $3}' || echo "3")
+  H4=$(grep    "^H4"   "$CONF" 2>/dev/null | awk '{print $3}' || echo "4")
+
+  # Конфиг клиента — с AWG-параметрами обфускации
   cat > "$CLIENTS_DIR/${CLIENT_NAME}.conf" <<EOF
 [Interface]
 PrivateKey = $CLIENT_PRIVKEY
 Address = ${CLIENT_IP}/32
 DNS = $DNS
+Jc = $JC
+Jmin = $JMIN
+Jmax = $JMAX
+S1 = $S1
+S2 = $S2
+H1 = $H1
+H2 = $H2
+H3 = $H3
+H4 = $H4
 
 [Peer]
 PublicKey = $SERVER_PUBKEY
@@ -299,36 +322,15 @@ EOF
 
   # ── Ссылка для подключения AmneziaVPN ──────────────────────────
   # Формат: vpn:// + base64url( qCompress(JSON) )
-  # qCompress = 4 байта big-endian (размер оригинала) + zlib deflate
-  # Источник: github.com/amnezia-vpn/amnezia-client importController.cpp
+  # qCompress = 4 байта big-endian (размер оригинала) + zlib level=8
+  # Источник: exportController.cpp L52 (amnezia-vpn/amnezia-client)
   local VPN_LINK
-  VPN_LINK=$(python3 - "$CLIENTS_DIR/${CLIENT_NAME}.conf" "$CLIENT_NAME" <<'PYEOF'
-import sys, json, zlib, base64, struct
-conf_path = sys.argv[1]
-name      = sys.argv[2]
-with open(conf_path) as f:
-    raw_conf = f.read()
-inner = json.dumps({"config": raw_conf, "junkPacketCount": 4,
-                    "junkPacketMinSize": 40, "junkPacketMaxSize": 70,
-                    "initPacketJunkSize": 0, "responsePacketJunkSize": 0,
-                    "initPacketMagicHeader": 1, "responsePacketMagicHeader": 2,
-                    "underloadPacketMagicHeader": 3, "transportPacketMagicHeader": 4})
-payload = {
-    "containers": [{"container": "amnezia-awg", "awg": {"last_config": inner}}],
-    "defaultContainer": "amnezia-awg",
-    "description": name
-}
-data = json.dumps(payload, ensure_ascii=False).encode()
-compressed = zlib.compress(data, level=9)
-qcompressed = struct.pack(">I", len(data)) + compressed
-encoded = base64.urlsafe_b64encode(qcompressed).rstrip(b"=").decode()
-print("vpn://" + encoded)
-PYEOF
-)
+  VPN_LINK=$(python3 "$(dirname "$0")/amnezia_encode.py" \
+    "$CLIENTS_DIR/${CLIENT_NAME}.conf" "$CLIENT_NAME" \
+    "$JC" "$JMIN" "$JMAX" "$S1" "$S2" "$H1" "$H2" "$H3" "$H4")
   if [[ -z "$VPN_LINK" ]]; then
     VPN_LINK="(ошибка генерации ссылки — убедитесь что установлен python3)"
   fi
-
   echo -e "  ${BOLD}🔗 Ссылка для подключения (AmneziaVPN):${RESET}"
   echo ""
   echo -e "  ${CYAN}$VPN_LINK${RESET}"
