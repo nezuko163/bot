@@ -220,20 +220,32 @@ add_client() {
   echo -e "${BOLD}  ➕ Добавление нового клиента${RESET}"
   echo ""
 
-  # Имя клиента
-  echo -e "  ${DIM}Введите имя клиента (например: phone, laptop, work):${RESET}"
+  # Имя клиента — любое, включая кириллицу и пробелы
+  echo -e "  ${DIM}Введите название устройства (например: Мой телефон, Work Laptop):${RESET}"
   echo -n "  > "
-  read -r CLIENT_NAME
+  read -r CLIENT_DISPLAY_NAME
 
-  if [[ -z "$CLIENT_NAME" ]]; then
+  if [[ -z "$CLIENT_DISPLAY_NAME" ]]; then
     echo -e "${RED}  Имя не может быть пустым${RESET}"
     pause
     return
   fi
 
-  # Проверка уникальности
+  # Безопасное имя для файловой системы: lowercase латиница/цифры/дефис/подчёркивание
+  local CLIENT_NAME
+  CLIENT_NAME=$(echo "$CLIENT_DISPLAY_NAME" \
+    | tr '[:upper:]' '[:lower:]' \
+    | tr ' ' '_' \
+    | sed 's/[^a-z0-9_-]//g')
+
+  # Если после очистки пусто (была только кириллица) — используем timestamp
+  if [[ -z "$CLIENT_NAME" ]]; then
+    CLIENT_NAME="device_$(date +%s)"
+  fi
+
+  # Проверка уникальности по имени файла
   if [[ -f "$CLIENTS_DIR/${CLIENT_NAME}.conf" ]]; then
-    echo -e "${RED}  Клиент '$CLIENT_NAME' уже существует!${RESET}"
+    echo -e "${RED}  Клиент '${CLIENT_DISPLAY_NAME}' уже существует!${RESET}"
     pause
     return
   fi
@@ -299,7 +311,7 @@ EOF
   # Добавляем пира в серверный конфиг
   cat >> "$CONF" <<EOF
 
-# Client: $CLIENT_NAME
+# $CLIENT_DISPLAY_NAME
 [Peer]
 PublicKey = $CLIENT_PUBKEY
 PresharedKey = $CLIENT_PSK
@@ -315,16 +327,16 @@ EOF
   fi
 
   echo ""
-  echo -e "${GREEN}  ✅ Клиент '${BOLD}$CLIENT_NAME${RESET}${GREEN}' создан!${RESET}"
-  echo -e "  📍 VPN IP: ${CYAN}$CLIENT_IP${RESET}"
-  echo -e "  📁 Конфиг: ${DIM}$CLIENTS_DIR/${CLIENT_NAME}.conf${RESET}"
+  echo -e "${GREEN}  ✅ Клиент '${BOLD}$CLIENT_DISPLAY_NAME${RESET}${GREEN}' создан!${RESET}"
+  echo -e "  📍 VPN IP:  ${CYAN}$CLIENT_IP${RESET}"
+  echo -e "  📁 Файл:   ${DIM}$CLIENTS_DIR/${CLIENT_NAME}.conf${RESET}"
   echo ""
 
   # ── Ссылка для подключения AmneziaVPN ──────────────────────────
   # Формат: vpn://base64(конфиг)?name=urlencoded_name
   # Именно этот формат принимает AmneziaVPN при вставке ссылки
   local VPN_LINK ENCODED_NAME CONF_B64
-  ENCODED_NAME=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$CLIENT_NAME" 2>/dev/null || echo "$CLIENT_NAME")
+  ENCODED_NAME=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$CLIENT_DISPLAY_NAME" 2>/dev/null || echo "$CLIENT_DISPLAY_NAME")
   CONF_B64=$(base64 -w 0 < "$CLIENTS_DIR/${CLIENT_NAME}.conf")
   VPN_LINK="vpn://${CONF_B64}?name=${ENCODED_NAME}"
   if [[ -z "$CONF_B64" ]]; then
