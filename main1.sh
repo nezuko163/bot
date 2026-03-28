@@ -297,14 +297,54 @@ EOF
   echo -e "  📁 Конфиг: ${DIM}$CLIENTS_DIR/${CLIENT_NAME}.conf${RESET}"
   echo ""
 
-  # QR-код
+  # ── Ссылка для подключения AmneziaVPN ──────────────────────────
+  # Формат: vpn:// + base64url( qCompress(JSON) )
+  # qCompress = 4 байта big-endian (размер оригинала) + zlib deflate
+  # Источник: github.com/amnezia-vpn/amnezia-client importController.cpp
+  local VPN_LINK
+  VPN_LINK=$(python3 - "$CLIENTS_DIR/${CLIENT_NAME}.conf" "$CLIENT_NAME" <<'PYEOF'
+import sys, json, zlib, base64, struct
+conf_path = sys.argv[1]
+name      = sys.argv[2]
+with open(conf_path) as f:
+    raw_conf = f.read()
+inner = json.dumps({"config": raw_conf, "junkPacketCount": 4,
+                    "junkPacketMinSize": 40, "junkPacketMaxSize": 70,
+                    "initPacketJunkSize": 0, "responsePacketJunkSize": 0,
+                    "initPacketMagicHeader": 1, "responsePacketMagicHeader": 2,
+                    "underloadPacketMagicHeader": 3, "transportPacketMagicHeader": 4})
+payload = {
+    "containers": [{"container": "amnezia-awg", "awg": {"last_config": inner}}],
+    "defaultContainer": "amnezia-awg",
+    "description": name
+}
+data = json.dumps(payload, ensure_ascii=False).encode()
+compressed = zlib.compress(data, level=9)
+qcompressed = struct.pack(">I", len(data)) + compressed
+encoded = base64.urlsafe_b64encode(qcompressed).rstrip(b"=").decode()
+print("vpn://" + encoded)
+PYEOF
+)
+  if [[ -z "$VPN_LINK" ]]; then
+    VPN_LINK="(ошибка генерации ссылки — убедитесь что установлен python3)"
+  fi
+
+  echo -e "  ${BOLD}🔗 Ссылка для подключения (AmneziaVPN):${RESET}"
+  echo ""
+  echo -e "  ${CYAN}$VPN_LINK${RESET}"
+  echo ""
+  echo -e "  ${DIM}Скопируй ссылку и открой в приложении AmneziaVPN,${RESET}"
+  echo -e "  ${DIM}или отправь её на устройство клиента.${RESET}"
+  echo ""
+
+  # ── QR-код ссылки ──────────────────────────────────────────────
   if command -v qrencode &>/dev/null; then
-    echo -e "  ${BOLD}📱 QR-код для мобильного приложения:${RESET}"
+    echo -e "  ${BOLD}📱 QR-код ссылки (сканируй в AmneziaVPN):${RESET}"
     echo ""
-    qrencode -t ansiutf8 < "$CLIENTS_DIR/${CLIENT_NAME}.conf"
+    echo -n "$VPN_LINK" | qrencode -t ansiutf8
     echo ""
   else
-    echo -e "  ${DIM}(установите qrencode для отображения QR-кода)${RESET}"
+    echo -e "  ${DIM}(установите qrencode для отображения QR-кода: apt install qrencode)${RESET}"
     echo ""
   fi
 
