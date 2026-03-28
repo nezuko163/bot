@@ -321,15 +321,14 @@ EOF
   echo ""
 
   # ── Ссылка для подключения AmneziaVPN ──────────────────────────
-  # Формат: vpn:// + base64url( qCompress(JSON) )
-  # qCompress = 4 байта big-endian (размер оригинала) + zlib level=8
-  # Источник: exportController.cpp L52 (amnezia-vpn/amnezia-client)
-  local VPN_LINK
-  VPN_LINK=$(python3 "$(dirname "$0")/amnezia_encode.py" \
-    "$CLIENTS_DIR/${CLIENT_NAME}.conf" "$CLIENT_NAME" \
-    "$JC" "$JMIN" "$JMAX" "$S1" "$S2" "$H1" "$H2" "$H3" "$H4")
-  if [[ -z "$VPN_LINK" ]]; then
-    VPN_LINK="(ошибка генерации ссылки — убедитесь что установлен python3)"
+  # Формат: vpn://base64(конфиг)?name=urlencoded_name
+  # Именно этот формат принимает AmneziaVPN при вставке ссылки
+  local VPN_LINK ENCODED_NAME CONF_B64
+  ENCODED_NAME=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$CLIENT_NAME" 2>/dev/null || echo "$CLIENT_NAME")
+  CONF_B64=$(base64 -w 0 < "$CLIENTS_DIR/${CLIENT_NAME}.conf")
+  VPN_LINK="vpn://${CONF_B64}?name=${ENCODED_NAME}"
+  if [[ -z "$CONF_B64" ]]; then
+    VPN_LINK="(ошибка генерации ссылки)"
   fi
   echo -e "  ${BOLD}🔗 Ссылка для подключения (AmneziaVPN):${RESET}"
   echo ""
@@ -435,9 +434,17 @@ list_clients() {
     echo "  ────────────────────────────────────────"
     echo ""
     if command -v qrencode &>/dev/null; then
-      echo -e "  ${BOLD}📱 QR-код:${RESET}"
+      local SEL_ENC_NAME SEL_CONF_B64 SEL_VPN_LINK
+      SEL_ENC_NAME=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$SELECTED" 2>/dev/null || echo "$SELECTED")
+      SEL_CONF_B64=$(base64 -w 0 < "$CLIENTS_DIR/${SELECTED}.conf")
+      SEL_VPN_LINK="vpn://${SEL_CONF_B64}?name=${SEL_ENC_NAME}"
+      echo -e "  ${BOLD}🔗 Ссылка для подключения:${RESET}"
       echo ""
-      qrencode -t ansiutf8 < "$CLIENTS_DIR/${SELECTED}.conf"
+      echo -e "  ${CYAN}$SEL_VPN_LINK${RESET}"
+      echo ""
+      echo -e "  ${BOLD}📱 QR-код ссылки (сканируй в AmneziaVPN):${RESET}"
+      echo ""
+      echo -n "$SEL_VPN_LINK" | qrencode -t ansiutf8
       echo ""
     fi
     pause
